@@ -42,6 +42,7 @@ ZH_SENSES = [
     'Temporal',
     ]
 
+
 def validate_file(file_name, language):
     lines = open(file_name)
     all_correct = True
@@ -58,6 +59,7 @@ def validate_file(file_name, language):
             all_correct = False
     return all_correct
 
+
 def validate_relation_list(relation_list, language):
     all_correct = True
     for i, relation in enumerate(relation_list):
@@ -70,7 +72,8 @@ def validate_relation_list(relation_list, language):
             sys.stderr.write('Relation %s %s\n' % (i, e))
             all_correct = False
     return all_correct
- 
+
+
 def check_type(relation):
     if 'Type' not in relation:
         raise ValueError('Field \'Type\' is required but not found')
@@ -78,7 +81,8 @@ def check_type(relation):
     if relation_type not in RELATION_TYPES:
         raise ValueError('Invalid type of %s' % relation_type)
     if relation_type == 'NoRel':
-        raise ValueError('NoRel should be removed as it is treated as a negative example')
+        raise ValueError(
+            'NoRel should be removed as it is treated as a negative example')
 
 
 def check_sense(relation, language):
@@ -88,7 +92,8 @@ def check_sense(relation, language):
     if not isinstance(senses, list):
         raise TypeError('Sense field must be a list of one element')
     if len(senses) > 1:
-        raise TypeError('Sense field must be a list of one element. Got %s' % len(senses))
+        raise TypeError('Sense field must be a list of one element. Got %s' %
+                        len(senses))
     sense = senses[0]
     if language == 'en':
         valid_senses = EN_SENSES
@@ -100,6 +105,7 @@ def check_sense(relation, language):
     if sense not in valid_senses:
         raise ValueError('Invalid sense of %s' % sense)
 
+
 def check_args(relation):
     if 'Arg1' not in relation:
         raise ValueError('Field \'Arg1\' is required but not found')
@@ -110,11 +116,13 @@ def check_args(relation):
     else:
         check_span(relation['Arg2'])
 
+
 def check_connective(relation):
     if 'Connective' not in relation:
         raise ValueError('Field \'Connective\' is required but not found')
     else:
         check_span(relation['Connective'])
+
 
 def check_span(span):
     if 'TokenList' not in span:
@@ -122,11 +130,12 @@ def check_span(span):
     if not isinstance(span['TokenList'], list):
         raise TypeError('TokenList field must a list of token indices')
 
+
 def identify_language(g_relation_list):
     """Identify the language of the relation list based on senses
     """
-    english = 0.0
-    chinese = 0.0
+    english = 0
+    chinese = 0
     for relation in g_relation_list:
         sense = relation['Sense'][0]
         if sense in EN_SENSES:
@@ -135,8 +144,8 @@ def identify_language(g_relation_list):
             chinese += 1
     if english > chinese:
         return 'en'
-    else:
-        return 'zh'
+    return 'zh'
+
 
 def identify_valid_senses(g_relation_list):
     language = identify_language(g_relation_list)
@@ -145,10 +154,10 @@ def identify_valid_senses(g_relation_list):
     else:
         return ZH_SENSES
 
-    
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('System output format validator')
-    parser.add_argument('language', choices=['en','zh'], help='language of the output')
+    parser.add_argument('language', choices=['en', 'zh'],
+                        help='language of the output')
     parser.add_argument('system_output_file', help='output json file')
     args = parser.parse_args()
     validate_file(args.system_output_file, args.language)

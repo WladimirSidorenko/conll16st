@@ -62,7 +62,7 @@ def evaluate(gold_list, predicted_list):
             sense_cm, precision, recall, f1)
 
 
-@timeit
+# @timeit
 def evaluate_argument_extractor(gold_list, predicted_list):
     """Evaluate argument extractor at Arg1, Arg2, and relation level
 
@@ -87,15 +87,16 @@ def evaluate_argument_extractor(gold_list, predicted_list):
     return arg1_cm, arg2_cm, rel_arg_cm
 
 
-@timeit
+# @timeit
 def evaluate_connectives(gold_list, predicted_list):
     """Evaluate connective accuracy for explicit discourse relations
 
     """
-    explicit_gold_list = [(x['DocID'], x['Connective']['TokenList'],
+    explicit_gold_list = [(x['DocID'],
+                           set(t[2] for t in x['Connective']['TokenList']),
                            x['Connective']['RawText'])
                           for x in gold_list if x['Type'] == 'Explicit']
-    explicit_predicted_list = [(x['DocID'], x['Connective']['TokenList'])
+    explicit_predicted_list = [(x['DocID'], set(x['Connective']['TokenList']))
                                for x in predicted_list
                                if x['Type'] == 'Explicit']
     connective_cm = compute_binary_eval_metric(
@@ -171,25 +172,24 @@ def connective_head_matching(gold_raw_connective, predicted_raw_connective):
         connective_head_matching('just because', 'since')  --> False
 
     """
-    gold_docID, gold_token_address_list, gold_tokens = gold_raw_connective
-    predicted_docID, predicted_token_list = predicted_raw_connective
+    gold_docID, gold_token_indices, gold_tokens = gold_raw_connective
+    predicted_docID, predicted_token_indices = predicted_raw_connective
     if gold_docID != predicted_docID:
         return False
 
-    gold_token_indices = [x[2] for x in gold_token_address_list]
-
-    if gold_token_address_list == predicted_token_list:
+    if gold_token_indices == predicted_token_indices:
         return True
-    elif not set(predicted_token_list).issubset(set(gold_token_indices)):
+    elif not predicted_token_indices.issubset(gold_token_indices):
         return False
     else:
         conn_head, indices = CONN_HEAD_MAPPER.map_raw_connective(gold_tokens)
-        gold_head_connective_indices = [gold_token_indices[x] for x in indices]
-        return set(gold_head_connective_indices).issubset(
-            set(predicted_token_list))
+        for x in indices:
+            if gold_token_indices[x] not in predicted_token_indices:
+                return False
+        return True
 
 
-@timeit
+# @timeit
 def evaluate_sense(gold_list, predicted_list):
     """Evaluate sense classifier
 
@@ -201,10 +201,8 @@ def evaluate_sense(gold_list, predicted_list):
     """
     sense_alphabet = Alphabet()
     valid_senses = validator.identify_valid_senses(gold_list)
-    for relation in gold_list:
-        sense = relation['Sense'][0]
-        if sense in valid_senses:
-            sense_alphabet.add(sense)
+    for isense in valid_senses:
+        sense_alphabet.add(isense)
 
     sense_alphabet.add(ConfusionMatrix.NEGATIVE_CLASS)
 
@@ -249,7 +247,7 @@ def combine_spans(span1, span2):
     return new_span
 
 
-@timeit
+# @timeit
 def compute_span_exact_match_metric(gold_list, predicted_list):
     """Compute binary evaluation metric
 
@@ -309,6 +307,7 @@ def compute_binary_eval_metric(gold_list, predicted_list, matching_fn):
     return cm
 
 
+# @timeit
 def _link_gold_predicted(gold_list, predicted_list, matching_fn):
     """Link gold standard relations to the predicted relations
 
@@ -322,17 +321,20 @@ def _link_gold_predicted(gold_list, predicted_list, matching_fn):
     """
     gold_to_predicted_map = {}
     predicted_to_gold_map = {}
-    gold_arg12_list = [(x['DocID'], (x['Arg1']['TokenList'],
-                                     x['Arg2']['TokenList']))
+    gold_arg12_list = [(x['DocID'],
+                        (tuple(t[2] for t in x['Arg1']['TokenList']),
+                         tuple(t[2] for t in x['Arg2']['TokenList'])))
                        for x in gold_list]
-    predicted_arg12_list = [(x['DocID'], (x['Arg1']['TokenList'],
-                                          x['Arg2']['TokenList']))
+    predicted_arg12_list = [(x['DocID'], (tuple(x['Arg1']['TokenList']),
+                                          tuple(x['Arg2']['TokenList'])))
                             for x in predicted_list]
+    predictions = {k: i for i, k in enumerate(predicted_arg12_list)}
+    pi = -1
     for gi, gold_span in enumerate(gold_arg12_list):
-        for pi, predicted_span in enumerate(predicted_arg12_list):
-            if matching_fn(gold_span, predicted_span):
-                gold_to_predicted_map[gi] = predicted_list[pi]
-                predicted_to_gold_map[pi] = gold_list[gi]
+        if gold_span in predictions:
+            pi = predictions[gold_span]
+            gold_to_predicted_map[gi] = predicted_list[pi]
+            predicted_to_gold_map[pi] = gold_list[gi]
     return gold_to_predicted_map, predicted_to_gold_map
 
 
