@@ -1,16 +1,42 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
 """The Official CONLL 2016 Shared Task Scorer
 
 """
-import argparse
-import json
 
+##################################################################
+# Imports
+from __future__ import print_function
+
+from collections import defaultdict
 from confusion_matrix import ConfusionMatrix, Alphabet
 from conn_head_mapper import ConnHeadMapper
 import validator
 
+import argparse
+import json
+import sys
+import time
+
+##################################################################
+# Constants
 CONN_HEAD_MAPPER = ConnHeadMapper()
+
+
+##################################################################
+# Methods
+def timeit(method):
+
+    def timed(*args, **kw):
+        ts = time.time()
+        result = method(*args, **kw)
+        te = time.time()
+        print('{:s} ({:2.2f} sec)'.format(method.__name__, te-ts),
+              file=sys.stderr)
+        return result
+
+    return timed
 
 
 def evaluate(gold_list, predicted_list):
@@ -19,51 +45,49 @@ def evaluate(gold_list, predicted_list):
                                                                predicted_list)
     sense_cm = evaluate_sense(gold_list, predicted_list)
 
-    print 'Explicit connectives         : Precision %1.4f Recall %1.4f' \
-        ' F1 %1.4f' % connective_cm.get_prf('yes')
-    print 'Arg 1 extractor              : Precision %1.4f Recall %1.4f' \
-        ' F1 %1.4f' % arg1_cm.get_prf('yes')
-    print 'Arg 2 extractor              : Precision %1.4f Recall %1.4f' \
-        ' F1 %1.4f' % arg2_cm.get_prf('yes')
-    print 'Arg1 Arg2 extractor combined : Precision %1.4f Recall %1.4f' \
-        ' F1 %1.4f' % rel_arg_cm.get_prf('yes')
-    print 'Sense classification--------------'
+    print('Explicit connectives         : Precision %1.4f Recall %1.4f'
+          ' F1 %1.4f' % connective_cm.get_prf('yes'))
+    print('Arg 1 extractor              : Precision %1.4f Recall %1.4f'
+          ' F1 %1.4f' % arg1_cm.get_prf('yes'))
+    print('Arg 2 extractor              : Precision %1.4f Recall %1.4f'
+          ' F1 %1.4f' % arg2_cm.get_prf('yes'))
+    print('Arg1 Arg2 extractor combined : Precision %1.4f Recall %1.4f'
+          ' F1 %1.4f' % rel_arg_cm.get_prf('yes'))
+    print('Sense classification--------------')
     sense_cm.print_summary()
-    print 'Overall parser performance --------------'
+    print('Overall parser performance --------------')
     precision, recall, f1 = sense_cm.compute_micro_average_f1()
-    print 'Precision %1.4f Recall %1.4f F1 %1.4f' % (precision, recall, f1)
+    print('Precision %1.4f Recall %1.4f F1 %1.4f' % (precision, recall, f1))
     return (connective_cm, arg1_cm, arg2_cm, rel_arg_cm,
             sense_cm, precision, recall, f1)
 
 
+@timeit
 def evaluate_argument_extractor(gold_list, predicted_list):
     """Evaluate argument extractor at Arg1, Arg2, and relation level
 
     """
-    gold_arg1 = [(x['DocID'], x['Arg1']['TokenList']) for x in gold_list]
-    predicted_arg1 = [(x['DocID'], x['Arg1']['TokenList'])
+    gold_arg1 = [(x['DocID'], tuple(t[2] for t in x['Arg1']['TokenList']))
+                 for x in gold_list]
+    predicted_arg1 = [(x['DocID'], tuple(x['Arg1']['TokenList']))
                       for x in predicted_list]
-    arg1_cm = compute_binary_eval_metric(gold_arg1, predicted_arg1,
-                                         span_exact_matching)
+    arg1_cm = compute_span_exact_match_metric(gold_arg1, predicted_arg1)
 
-    gold_arg2 = [(x['DocID'], x['Arg2']['TokenList']) for x in gold_list]
-    predicted_arg2 = [(x['DocID'], x['Arg2']['TokenList'])
+    gold_arg2 = [(x['DocID'], tuple(t[2] for t in x['Arg2']['TokenList']))
+                 for x in gold_list]
+    predicted_arg2 = [(x['DocID'], tuple(x['Arg2']['TokenList']))
                       for x in predicted_list]
-    arg2_cm = compute_binary_eval_metric(gold_arg2, predicted_arg2,
-                                         span_exact_matching)
+    arg2_cm = compute_span_exact_match_metric(gold_arg2, predicted_arg2)
 
-    gold_arg12 = [(x['DocID'], (x['Arg1']['TokenList'],
-                                x['Arg2']['TokenList']))
-                  for x in gold_list]
-    predicted_arg12 = [(x['DocID'], (x['Arg1']['TokenList'],
-                                     x['Arg2']['TokenList']))
-                       for x in predicted_list]
-    rel_arg_cm = compute_binary_eval_metric(gold_arg12,
-                                            predicted_arg12,
-                                            spans_exact_matching)
+    gold_arg12 = [(g1[0], (g1[-1], g2[-1]))
+                  for g1, g2 in zip(gold_arg1, gold_arg2)]
+    predicted_arg12 = [(p1[0], (p1[-1], p2[-1]))
+                       for p1, p2 in zip(predicted_arg1, predicted_arg2)]
+    rel_arg_cm = compute_span_exact_match_metric(gold_arg12, predicted_arg12)
     return arg1_cm, arg2_cm, rel_arg_cm
 
 
+@timeit
 def evaluate_connectives(gold_list, predicted_list):
     """Evaluate connective accuracy for explicit discourse relations
 
@@ -165,6 +189,7 @@ def connective_head_matching(gold_raw_connective, predicted_raw_connective):
             set(predicted_token_list))
 
 
+@timeit
 def evaluate_sense(gold_list, predicted_list):
     """Evaluate sense classifier
 
@@ -222,6 +247,39 @@ def combine_spans(span1, span2):
     new_span['RawText'] = span1['RawText'] + span2['RawText']
     new_span['TokenList'] = span1['TokenList'] + span2['TokenList']
     return new_span
+
+
+@timeit
+def compute_span_exact_match_metric(gold_list, predicted_list):
+    """Compute binary evaluation metric
+
+    """
+    binary_alphabet = Alphabet()
+    binary_alphabet.add('yes')
+    binary_alphabet.add('no')
+    cm = ConfusionMatrix(binary_alphabet)
+    matched_predicted = [False for x in predicted_list]
+    predicted = defaultdict(list)
+    for i, pspan in enumerate(predicted_list):
+        predicted[pspan].append(i)
+    empty_list = []
+    key = indices = None
+    for gold in gold_list:
+        found_match = False
+        indices = predicted.get(gold, empty_list)
+        for i in indices:
+            if not matched_predicted[i]:
+                cm.add('yes', 'yes')
+                matched_predicted[i] = True
+                found_match = True
+                break
+        if not found_match:
+            cm.add('yes', 'no')
+    # Predicted span that does not match with any
+    for matched in matched_predicted:
+        if not matched:
+            cm.add('no', 'yes')
+    return cm
 
 
 def compute_binary_eval_metric(gold_list, predicted_list, matching_fn):
@@ -287,24 +345,26 @@ def main():
     gold_list = [json.loads(x) for x in open(args.gold) if x.strip()]
     predicted_list = [json.loads(x) for x in open(args.predicted) if x.strip()]
 
-    print '\n================================================'
-    print 'Evaluation for all discourse relations'
+    print('\n================================================')
+    print('Evaluation for all discourse relations')
     evaluate(gold_list, predicted_list)
 
-    print '\n================================================'
-    print 'Evaluation for explicit discourse relations only'
+    print('\n================================================')
+    print('Evaluation for explicit discourse relations only')
     explicit_gold_list = [x for x in gold_list if x['Type'] == 'Explicit']
     explicit_predicted_list = [x for x in predicted_list
                                if x['Type'] == 'Explicit']
     evaluate(explicit_gold_list, explicit_predicted_list)
 
-    print '\n================================================'
-    print 'Evaluation for non-explicit discourse relations only' \
-        ' (Implicit, EntRel, AltLex)'
+    print('\n================================================')
+    print('Evaluation for non-explicit discourse relations only'
+          ' (Implicit, EntRel, AltLex)')
     non_explicit_gold_list = [x for x in gold_list if x['Type'] != 'Explicit']
     non_explicit_predicted_list = [x for x in predicted_list
                                    if x['Type'] != 'Explicit']
     evaluate(non_explicit_gold_list, non_explicit_predicted_list)
 
+##################################################################
+# Main
 if __name__ == '__main__':
     main()

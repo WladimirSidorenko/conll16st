@@ -10,19 +10,22 @@ import json
 class ConfusionMatrix(object):
     """Confusion matrix for evaluating a classifier
 
-    For more information on confusion matrix en.wikipedia.org/wiki/Confusion_matrix
+    For more information on confusion matrix see:
+    en.wikipedia.org/wiki/Confusion_matrix
     """
 
     INIT_NUM_CLASSES = 100
     NEGATIVE_CLASS = '__NEGATIVE_CLASS__'
+
     def __init__(self, alphabet=None):
         if alphabet is None:
             self.alphabet = Alphabet()
-            self.matrix = numpy.zeros((self.INIT_NUM_CLASSES, self.INIT_NUM_CLASSES))
+            self.matrix = numpy.zeros((self.INIT_NUM_CLASSES,
+                                       self.INIT_NUM_CLASSES))
         else:
             self.alphabet = alphabet
             num_classes = alphabet.size()
-            self.matrix = numpy.zeros((num_classes,num_classes))
+            self.matrix = numpy.zeros((num_classes, num_classes))
 
     def __iadd__(self, other):
         self.matrix += other.matrix
@@ -38,7 +41,7 @@ class ConfusionMatrix(object):
         map to the integer index for the confusion matrix.
 
         """
-        if type(prediction) == int and type(true_answer) == int:
+        if type(prediction) is int and type(true_answer) is int:
             self.matrix[prediction, true_answer] += 1
         else:
             self.alphabet.add(prediction)
@@ -46,9 +49,8 @@ class ConfusionMatrix(object):
             prediction_index = self.alphabet.get_index(prediction)
             true_answer_index = self.alphabet.get_index(true_answer)
             self.matrix[prediction_index, true_answer_index] += 1
-            #XXX: this will fail if the prediction_index is greater than
-            # the initial capacity. I should grow the matrix if this crashes
-
+        #XXX: this will fail if the prediction_index is greater than
+        # the initial capacity. I should grow the matrix if this crashes
 
     def add_list(self, predictions, true_answers):
         """Add a list of data point to the confusion matrix
@@ -68,14 +70,14 @@ class ConfusionMatrix(object):
     def get_prf_for_i(self, i):
         """Compute precision, recall, and f1 score for a given index."""
 
-        if sum(self.matrix[i,:]) == 0:
+        if sum(self.matrix[i, :]) == 0:
             precision = 1.0
         else:
-            precision = self.matrix[i,i] / sum(self.matrix[i,:])
-        if sum(self.matrix[:,i]) == 0:
+            precision = self.matrix[i, i] / sum(self.matrix[i, :])
+        if sum(self.matrix[:, i]) == 0:
             recall = 1.0
         else:
-            recall = self.matrix[i,i] / sum(self.matrix[:,i])
+            recall = self.matrix[i, i] / sum(self.matrix[:, i])
         if precision + recall != 0.0:
             f1 = 2.0 * precision * recall / (precision + recall)
         else:
@@ -103,12 +105,14 @@ class ConfusionMatrix(object):
     def compute_micro_average_f1(self):
         total_correct = 0.0
         for i in xrange(self.alphabet.size()):
-            total_correct += self.matrix[i,i]
+            total_correct += self.matrix[i, i]
         negative_index = self.alphabet.get_index(self.NEGATIVE_CLASS)
-        total_predicted = numpy.sum([x for i, x in enumerate(self.matrix.sum(1))\
-            if negative_index == -1 or i != negative_index])
-        total_gold = numpy.sum([x for i, x in enumerate(self.matrix.sum(0)) \
-            if negative_index == -1 or i != negative_index])
+        total_predicted = numpy.sum(
+            [x for i, x in enumerate(self.matrix.sum(1))
+             if negative_index == -1 or i != negative_index])
+        total_gold = numpy.sum(
+            [x for i, x in enumerate(self.matrix.sum(0))
+             if negative_index == -1 or i != negative_index])
 
         if total_predicted == 0:
             precision = 1.0
@@ -122,7 +126,7 @@ class ConfusionMatrix(object):
             f1_score = 2.0 * (precision * recall) / (precision + recall)
         else:
             f1_score = 0.0
-        return (round(precision, 4), round(recall, 4), round(f1_score,4))
+        return (round(precision, 4), round(recall, 4), round(f1_score, 4))
 
     def compute_average_f1(self):
         precision, recall, f1 = self.get_prf_for_all()
@@ -137,11 +141,13 @@ class ConfusionMatrix(object):
     def print_matrix(self):
         num_classes = self.alphabet.size()
         #header for the confusion matrix
-        header = [' '] + [self.alphabet.get_label(i) for i in xrange(num_classes)]
+        header = [' '] + [self.alphabet.get_label(i)
+                          for i in xrange(num_classes)]
         rows = []
         #putting labels to the first column of rhw matrix
         for i in xrange(num_classes):
-            row = [self.alphabet.get_label(i)] + [str(self.matrix[i,j]) for j in xrange(num_classes)]
+            row = [self.alphabet.get_label(i)] + [str(self.matrix[i, j])
+                                                  for j in xrange(num_classes)]
             rows.append(row)
         print "row = predicted, column = truth"
         print matrix_to_string(rows, header)
@@ -151,7 +157,7 @@ class ConfusionMatrix(object):
         precision = numpy.zeros(self.alphabet.size())
         recall = numpy.zeros(self.alphabet.size())
         f1 = numpy.zeros(self.alphabet.size())
-        
+
         max_len = 0
         for i in xrange(self.alphabet.size()):
             label = self.alphabet.get_label(i)
@@ -163,15 +169,16 @@ class ConfusionMatrix(object):
         # compute precision, recall, and f1
         for i in xrange(self.alphabet.size()):
             precision[i], recall[i], f1[i] = self.get_prf_for_i(i)
-            correct += self.matrix[i,i]
+            correct += self.matrix[i, i]
             label = self.alphabet.get_label(i)
             if label != self.NEGATIVE_CLASS:
                 space = ' ' * (max_len - len(label) + 1)
-                lines.append( '%s%s precision %1.4f\trecall %1.4f\tF1 %1.4f' %\
-                    (label, space, precision[i], recall[i], f1[i]))
+                lines.append('%s%s precision %1.4f\trecall %1.4f\tF1 %1.4f' %
+                             (label, space, precision[i], recall[i], f1[i]))
         precision, recall, f1 = self.compute_micro_average_f1()
         space = ' ' * (max_len - 14 + 1)
-        lines.append('*Micro-Average%s precision %1.4f\trecall %1.4f\tF1 %1.4f' %\
+        lines.append(
+            '*Micro-Average%s precision %1.4f\trecall %1.4f\tF1 %1.4f' %
             (space, numpy.mean(precision), numpy.mean(recall), numpy.mean(f1)))
         lines.sort()
         print '\n'.join(lines)
@@ -180,18 +187,18 @@ class ConfusionMatrix(object):
         """Printing out confusion matrix along with Macro-F1 score"""
         self.print_matrix()
         self.print_summary()
-    
+
 
 def matrix_to_string(matrix, header=None):
-    """
-    Return a pretty, aligned string representation of a nxm matrix.
+    """Return a pretty, aligned string representation of a nxm matrix.
 
     This representation can be used to print any tabular data, such as
     database results. It works by scanning the lengths of each element
     in each column, and determining the format string dynamically.
 
     the implementation is adapted from here
-    mybravenewworld.wordpress.com/2010/09/19/print-tabular-data-nicely-using-python/
+    mybravenewworld.wordpress.com/2010/09/19/\
+    print-tabular-data-nicely-using-python/
 
     Args:
         matrix - Matrix representation (list with n rows of m elements).
@@ -199,6 +206,7 @@ def matrix_to_string(matrix, header=None):
 
     Returns:
         nicely formatted matrix string
+
     """
 
     if isinstance(header, list):
@@ -269,14 +277,15 @@ class Alphabet(object):
     def get_label(self, index):
         """Get label from index"""
         if index >= self.num_labels:
-            raise KeyError("There are %d labels but the index is %d" % (self.num_labels, index))
+            raise KeyError("There are %d labels but the index is %d" %
+                           (self.num_labels, index))
         return self._index_to_label[index]
 
     def get_index(self, label):
         """Get index from label"""
         if not self.has_label(label):
             if self.growing:
-                self.add(label) 
+                self.add(label)
             else:
                 return -1
         return self._label_to_index[label]
@@ -321,5 +330,3 @@ class Alphabet(object):
         assert(len(alphabet._index_to_label) == len(alphabet._label_to_index))
         alphabet.num_labels = len(alphabet._index_to_label)
         return alphabet
-
-
