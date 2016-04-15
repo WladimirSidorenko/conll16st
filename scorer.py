@@ -183,8 +183,8 @@ def connective_head_matching(gold_raw_connective, predicted_raw_connective):
         return False
     else:
         conn_head, indices = CONN_HEAD_MAPPER.map_raw_connective(gold_tokens)
-        for x in indices:
-            if gold_token_indices[x] not in predicted_token_indices:
+        for x in gold_token_indices:
+            if x not in predicted_token_indices:
                 return False
         return True
 
