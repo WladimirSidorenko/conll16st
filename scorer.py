@@ -203,8 +203,12 @@ def evaluate_sense(gold_list, predicted_list):
     """
     sense_alphabet = Alphabet()
     valid_senses = validator.identify_valid_senses(gold_list)
-    for isense in valid_senses:
-        sense_alphabet.add(isense)
+
+    isense = None
+    for relation in gold_list:
+        isense = relation['Sense'][0]
+        if isense in valid_senses:
+            sense_alphabet.add(isense)
 
     sense_alphabet.add(ConfusionMatrix.NEGATIVE_CLASS)
 
