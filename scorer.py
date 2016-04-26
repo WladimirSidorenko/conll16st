@@ -94,6 +94,7 @@ def evaluate_connectives(gold_list, predicted_list):
     """
     explicit_gold_list = [(x['DocID'],
                            set(t[2] for t in x['Connective']['TokenList']),
+                           [t[2] for t in x['Connective']['TokenList']],
                            x['Connective']['RawText'])
                           for x in gold_list if x['Type'] == 'Explicit']
     explicit_predicted_list = [(x['DocID'], set(x['Connective']['TokenList']))
@@ -172,7 +173,8 @@ def connective_head_matching(gold_raw_connective, predicted_raw_connective):
         connective_head_matching('just because', 'since')  --> False
 
     """
-    gold_docID, gold_token_indices, gold_tokens = gold_raw_connective
+    gold_docID, gold_token_indices, gold_token_list, \
+        gold_tokens = gold_raw_connective
     predicted_docID, predicted_token_indices = predicted_raw_connective
     if gold_docID != predicted_docID:
         return False
@@ -183,8 +185,8 @@ def connective_head_matching(gold_raw_connective, predicted_raw_connective):
         return False
     else:
         conn_head, indices = CONN_HEAD_MAPPER.map_raw_connective(gold_tokens)
-        for x in gold_token_indices:
-            if x not in predicted_token_indices:
+        for x in indices:
+            if gold_token_list[x] not in predicted_token_indices:
                 return False
         return True
 
