@@ -278,11 +278,11 @@ def compute_span_exact_match_metric(gold_list, predicted_list):
                 found_match = True
                 break
         if not found_match:
-            cm.add('yes', 'no')
+            cm.add('no', 'yes')
     # Predicted span that does not match with any
     for matched in matched_predicted:
         if not matched:
-            cm.add('no', 'yes')
+            cm.add('yes', 'no')
     return cm
 
 
@@ -305,11 +305,11 @@ def compute_binary_eval_metric(gold_list, predicted_list, matching_fn):
                 found_match = True
                 break
         if not found_match:
-            cm.add('yes', 'no')
+            cm.add('no', 'yes')
     # Predicted span that does not match with any
     for matched in matched_predicted:
         if not matched:
-            cm.add('no', 'yes')
+            cm.add('yes', 'no')
     return cm
 
 
