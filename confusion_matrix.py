@@ -16,6 +16,27 @@ class ConfusionMatrix(object):
 
     INIT_NUM_CLASSES = 100
     NEGATIVE_CLASS = '__NEGATIVE_CLASS__'
+    FULL2NICE = {"Alternative": "Alt",
+                 "Asynchronous": "Async",
+                 "Cause": "Cause",
+                 "Chosen alternative": "ChAlt",
+                 "Comparison": "Comp",
+                 "Concession": "Conc",
+                 "Condition": "Cond",
+                 "Conjunction": "Conj",
+                 "Contingency": "Ctgc",
+                 "Contrast": "Cntr",
+                 "Expansion": "Exp",
+                 "Instantiation": "Inst",
+                 "Succession": "Succ",
+                 "Synchrony": "Sync",
+                 "Precedence": "Prec",
+                 "Reason": "Reason",
+                 "Result": "Res",
+                 "Restatement": "Rstmt",
+                 "EntRel": "EntRel",
+                 "Temporal": "Temp",
+                 NEGATIVE_CLASS: "None"}
 
     def __init__(self, alphabet=None):
         if alphabet is None:
@@ -187,6 +208,48 @@ class ConfusionMatrix(object):
         """Printing out confusion matrix along with Macro-F1 score"""
         self.print_matrix()
         self.print_summary()
+
+    def plot(self, title="Confusion matrix",
+             normalize=True,
+             fname="normalized_confusion_matrix.pdf",
+             cmap=None):
+        import matplotlib.pyplot as plt
+        from matplotlib.backends.backend_pdf import PdfPages
+        labels = [self.pplabel(self.alphabet.get_label(i))
+                  for i in xrange(self.alphabet.size())]
+
+        if normalize:
+            cm = self.matrix.astype('float') / \
+                self.matrix.sum(axis=1)[:, numpy.newaxis]
+        else:
+            cm = self.matrix
+        plt.figure()
+        plt.imshow(cm, interpolation="nearest",
+                   cmap=cmap or plt.cm.Blues)
+        # plt.title(title)
+        plt.colorbar()
+        tick_marks = numpy.arange(len(labels))
+        plt.xticks(tick_marks, labels, rotation=90)
+        plt.yticks(tick_marks, labels)
+        plt.tight_layout()
+        plt.ylabel("True label")
+        plt.xlabel("Predicted label")
+        pp = PdfPages(fname)
+        plt.savefig(pp, format="pdf")
+        pp.close()
+
+    def pplabel(self, a_label):
+        """Return nice representation of a discourse relation name.
+
+        Args:
+          a_label (str): label to normalize
+
+        Returns:
+          str: nice representation of ``a_label``
+
+        """
+        return '.'.join(self.FULL2NICE[lbl]
+                        for lbl in a_label.split('.'))
 
 
 def matrix_to_string(matrix, header=None):

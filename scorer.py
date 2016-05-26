@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8; -*-
 
 """The Official CONLL 2016 Shared Task Scorer
 
@@ -7,7 +7,7 @@
 
 ##################################################################
 # Imports
-from __future__ import print_function
+from __future__ import print_function, unicode_literals
 
 from collections import defaultdict
 from confusion_matrix import ConfusionMatrix, Alphabet
@@ -22,28 +22,17 @@ import time
 ##################################################################
 # Constants
 CONN_HEAD_MAPPER = ConnHeadMapper()
+ENCODING = 'utf-8'
 
 
 ##################################################################
 # Methods
-def timeit(method):
-
-    def timed(*args, **kw):
-        ts = time.time()
-        result = method(*args, **kw)
-        te = time.time()
-        print('{:s} ({:2.2f} sec)'.format(method.__name__, te-ts),
-              file=sys.stderr)
-        return result
-
-    return timed
-
-
-def evaluate(gold_list, predicted_list):
-    connective_cm = evaluate_connectives(gold_list, predicted_list)
+def evaluate(gold_list, predicted_list, verbose=False):
+    connective_cm = evaluate_connectives(gold_list, predicted_list, verbose)
     arg1_cm, arg2_cm, rel_arg_cm = evaluate_argument_extractor(gold_list,
-                                                               predicted_list)
-    sense_cm = evaluate_sense(gold_list, predicted_list)
+                                                               predicted_list,
+                                                               verbose)
+    sense_cm = evaluate_sense(gold_list, predicted_list, verbose)
 
     print('Explicit connectives         : Precision %1.4f Recall %1.4f'
           ' F1 %1.4f' % connective_cm.get_prf('yes'))
@@ -58,12 +47,12 @@ def evaluate(gold_list, predicted_list):
     print('Overall parser performance --------------')
     precision, recall, f1 = sense_cm.compute_micro_average_f1()
     print('Precision %1.4f Recall %1.4f F1 %1.4f' % (precision, recall, f1))
+    # sense_cm.plot()
     return (connective_cm, arg1_cm, arg2_cm, rel_arg_cm,
             sense_cm, precision, recall, f1)
 
 
-# @timeit
-def evaluate_argument_extractor(gold_list, predicted_list):
+def evaluate_argument_extractor(gold_list, predicted_list, verbose=False):
     """Evaluate argument extractor at Arg1, Arg2, and relation level
 
     """
@@ -83,12 +72,12 @@ def evaluate_argument_extractor(gold_list, predicted_list):
                   for g1, g2 in zip(gold_arg1, gold_arg2)]
     predicted_arg12 = [(p1[0], (p1[-1], p2[-1]))
                        for p1, p2 in zip(predicted_arg1, predicted_arg2)]
-    rel_arg_cm = compute_span_exact_match_metric(gold_arg12, predicted_arg12)
+    rel_arg_cm = compute_span_exact_match_metric(gold_arg12, predicted_arg12,
+                                                 verbose)
     return arg1_cm, arg2_cm, rel_arg_cm
 
 
-# @timeit
-def evaluate_connectives(gold_list, predicted_list):
+def evaluate_connectives(gold_list, predicted_list, verbose=False):
     """Evaluate connective accuracy for explicit discourse relations
 
     """
@@ -191,8 +180,7 @@ def connective_head_matching(gold_raw_connective, predicted_raw_connective):
         return True
 
 
-# @timeit
-def evaluate_sense(gold_list, predicted_list):
+def evaluate_sense(gold_list, predicted_list, verbose=False):
     """Evaluate sense classifier
 
     The label ConfusionMatrix.NEGATIVE_CLASS is for the relations
@@ -227,8 +215,29 @@ def evaluate_sense(gold_list, predicted_list):
                 else:
                     if not sense_cm.alphabet.has_label(predicted_sense):
                         predicted_sense = ConfusionMatrix.NEGATIVE_CLASS
+                    if verbose:
+                        print('Sense:')
+                        print('<<<\t{:s}'.format(gold_sense).encode(ENCODING))
+                        print('>>>\t{:s}'.format(predicted_sense).encode(
+                            ENCODING))
+                        print('Arg1:\t{:s}'.format(
+                            gold_relation['Arg1']['RawText']).encode(ENCODING))
+                        print('Arg2:\t{:s}'.format(
+                            gold_relation['Arg2']['RawText']).encode(ENCODING))
+                        print()
                     sense_cm.add(predicted_sense, gold_sense)
             else:
+                if verbose:
+                    print('Sense:')
+                    print('<<<\t{:s}'.format(gold_sense).encode(ENCODING))
+                    print('>>>\t{:s}'.format(
+                        ConfusionMatrix.NEGATIVE_CLASS).encode(
+                        ENCODING))
+                    print('Arg1:\t{:s}'.format(
+                        gold_relation['Arg1']['RawText']).encode(ENCODING))
+                    print('Arg2:\t{:s}'.format(
+                        gold_relation['Arg2']['RawText']).encode(ENCODING))
+                    print()
                 sense_cm.add(ConfusionMatrix.NEGATIVE_CLASS, gold_sense)
 
     for i, predicted_relation in enumerate(predicted_list):
@@ -236,6 +245,17 @@ def evaluate_sense(gold_list, predicted_list):
             predicted_sense = predicted_relation['Sense'][0]
             if not sense_cm.alphabet.has_label(predicted_sense):
                 predicted_sense = ConfusionMatrix.NEGATIVE_CLASS
+            if verbose:
+                print('Sense:')
+                print('<<<\t{:s}'.format(gold_sense).encode(ENCODING))
+                print('>>>\t{:s}'.format(
+                    ConfusionMatrix.NEGATIVE_CLASS).encode(
+                    ENCODING))
+                print('Arg1:\t{:s}'.format(
+                    gold_relation['Arg1']['RawText']).encode(ENCODING))
+                print('Arg2:\t{:s}'.format(
+                    gold_relation['Arg2']['RawText']).encode(ENCODING))
+                print()
             sense_cm.add(predicted_sense, ConfusionMatrix.NEGATIVE_CLASS)
     return sense_cm
 
@@ -253,8 +273,7 @@ def combine_spans(span1, span2):
     return new_span
 
 
-# @timeit
-def compute_span_exact_match_metric(gold_list, predicted_list):
+def compute_span_exact_match_metric(gold_list, predicted_list, verbose=False):
     """Compute binary evaluation metric
 
     """
@@ -278,10 +297,18 @@ def compute_span_exact_match_metric(gold_list, predicted_list):
                 found_match = True
                 break
         if not found_match:
+            if verbose:
+                print('Span:')
+                print('<<<\t{:s}'.format(gold).encode(ENCODING))
+                print()
             cm.add('no', 'yes')
     # Predicted span that does not match with any
-    for matched in matched_predicted:
+    for matched, pred in zip(matched_predicted, predicted_list):
         if not matched:
+            if verbose:
+                print('Span:')
+                print('>>>\t{:s}'.format(pred).encode(ENCODING))
+                print()
             cm.add('yes', 'no')
     return cm
 
@@ -313,7 +340,6 @@ def compute_binary_eval_metric(gold_list, predicted_list, matching_fn):
     return cm
 
 
-# @timeit
 def _link_gold_predicted(gold_list, predicted_list, matching_fn):
     """Link gold standard relations to the predicted relations
 
@@ -347,6 +373,9 @@ def _link_gold_predicted(gold_list, predicted_list, matching_fn):
 def main():
     parser = argparse.ArgumentParser(
         description="Evaluate system's output against the gold standard")
+    parser.add_argument('-v', '--verbose',
+                        help='Output erroneous predictions.',
+                        action='store_true')
     parser.add_argument('gold', help='Gold standard file')
     parser.add_argument('predicted', help='System output file')
     args = parser.parse_args()
@@ -355,7 +384,7 @@ def main():
 
     print('\n================================================')
     print('Evaluation for all discourse relations')
-    evaluate(gold_list, predicted_list)
+    evaluate(gold_list, predicted_list, args.verbose)
 
     print('\n================================================')
     print('Evaluation for explicit discourse relations only')
@@ -367,7 +396,8 @@ def main():
     print('\n================================================')
     print('Evaluation for non-explicit discourse relations only'
           ' (Implicit, EntRel, AltLex)')
-    non_explicit_gold_list = [x for x in gold_list if x['Type'] != 'Explicit']
+    non_explicit_gold_list = [x for x in gold_list
+                              if x['Type'] != 'Explicit']
     non_explicit_predicted_list = [x for x in predicted_list
                                    if x['Type'] != 'Explicit']
     evaluate(non_explicit_gold_list, non_explicit_predicted_list)
